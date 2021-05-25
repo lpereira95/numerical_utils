@@ -104,8 +104,9 @@ class TimerForIterations(Timer):
 # TODO: rething this plotters
 
 class TimePlotter:
+    # TODO: rethink x
 
-    def __init__(self, timers, x=None):
+    def __init__(self, timers, x=None, x_label=None):
         '''
         Parameters
         ----------
@@ -113,20 +114,55 @@ class TimePlotter:
             Corresponding `x` value for each timer (e.g. number of nodes).
         '''
         self.timers = timers
-        self.update_x(x)
+        self.x = None
+        self.x_label = None
+        self.update_x(x, x_label)
 
-    def update_x(self, x):
-        if x is None:
-            x = [0 for _ in self.timers]
-        self.x = x
+    def update_x(self, x, x_label=None):
+        # update x
+        if x is not None:
+            self.x = x
+        elif x is None and self.x is None:
+            self.x = [0 for _ in self.timers]
 
-    def plot_total_times(self, ax=None, add_legend=False, ylabel='Total time /s'):
+        # update label
+        if x_label is not None:
+            self.x_label = x_label
+
+    def plot_total_times(self, x=None, ax=None, add_legend=False,
+                         y_label='Total time /s', x_label=None):
+        return self.plot_var(var_name='total_time', y_label=y_label, x=x, ax=ax,
+                             add_legend=add_legend, x_label=x_label)
+
+    def plot_var(self, y=None, var_name=None, y_label=None, x=None, ax=None,
+                 add_legend=False, x_label=None, scatter=False):
+        '''
+        Notes
+        -----
+        * y or var_name must be given (not both).
+        '''
+
+        self.update_x(x, x_label)
         ax = self._get_ax(ax)
 
-        for timer, xx in zip(self.timers, self.x):
-            ax.scatter(xx, timer.total_time, label=timer.name)
+        # get y
+        if y is None:
+            y = [getattr(timer, var_name) for timer in self.timers]
 
-        ax.set_ylabel(ylabel)
+        # plot
+        if scatter:
+            if y is None:
+                labels = [timer.name for timer in self.timers]
+            else:
+                labels = [None for _ in range(len(y))]
+
+            for xx, yy, label in zip(self.x, y, labels):
+                ax.scatter(xx, yy, label=label)
+        else:
+            ax.plot(self.x, y, linestyle='--', marker='x')
+
+        ax.set_xlabel(self.x_label)
+        ax.set_ylabel(y_label)
 
         if add_legend:
             ax.legend()
@@ -141,6 +177,7 @@ class TimePlotter:
 
 
 class TimePlotterForIterations(TimePlotter):
+    # TODO: review
 
     def __init__(self, timers, x=None):
         super().__init__(timers, x)
@@ -169,8 +206,9 @@ class TimePlotterForIterations(TimePlotter):
 
 class ParallelTimerArray:
     '''
-    Container for timers that worked in parallel.
+    Timer composed of timers that worked in parallel.
     '''
+    # TODO: think about inheritance
 
     def __init__(self, timers=None, name='', description=''):
         self.name = ''
@@ -184,9 +222,7 @@ class ParallelTimerArray:
         '''Assumes all json files are timers. If not, you should explicitly
         specify filenames when loading.
         '''
-        filenames = []
-        for name in glob.glob(os.path.join(path, f'*.json')):
-            filenames.append(name)
+        filenames = [name for name in glob.glob(os.path.join(path, f'*.json'))]
 
         return sorted(filenames, key=lambda x: self._get_cpu(os.path.split(x)[-1]))
 
@@ -220,3 +256,48 @@ class ParallelTimerArray:
     @property
     def mean_time(self):
         return statistics.mean(self._collect_total_times())
+
+    @property
+    def n_cpus(self):
+        return len(self.timers.keys())
+
+
+class BenchmarkTimerArray:
+    '''
+    # TODO: complete
+    '''
+    # TODO: some kind of loader from files? (hard to generalize...) - load by infer
+
+    def __init__(self, timers):
+        self.timers = timers
+        # create plotter
+        self.plotter = TimePlotter(self, x=[timer.n_cpus for timer in self.timers],
+                                   x_label='n cpus')
+
+    def __iter__(self):
+        return iter(self.timers)
+
+    def _get_single_cpu_timer(self):
+        for timer in self.timers:
+            if timer.n_cpus == 1:
+                return timer
+
+    def compute_efficiencies(self):
+        total_time_single = self._get_single_cpu_timer().total_time
+        return [total_time_single / timer.total_cpu_time for timer in self.timers]
+
+    def plot_total_times(self, ax=None):
+        return self.plotter.plot_total_times(ax=ax)
+
+    def plot_efficiencies(self, ax=None):
+        return self.plotter.plot_var(y=self.compute_efficiencies(),
+                                     y_label='Efficiency', ax=ax)
+
+    def plot(self, ax=None):
+        ax = self.plot_total_times(ax)
+        ax.yaxis.label.set_color(ax.get_lines()[0].get_color())
+        ax2 = ax.twinx()
+        ax2._get_lines.get_next_color()
+        self.plot_efficiencies(ax2)
+        ax2.yaxis.label.set_color(ax2.get_lines()[0].get_color())
+        return ax, ax2
