@@ -101,6 +101,7 @@ class TimerForIterations(Timer):
 # TODO: create statistics
 # TODO: create time bar plotter (including comparisons) - check f3dasm
 
+# TODO: rething this plotters
 
 class TimePlotter:
 
@@ -164,6 +165,8 @@ class TimePlotterForIterations(TimePlotter):
 
 # TODO: it should work fine within timeplotter; how to incorporate iterations?
 
+# TODO: compute efficiency
+
 class ParallelTimerArray:
     '''
     Container for timers that worked in parallel.
@@ -175,27 +178,26 @@ class ParallelTimerArray:
         self.timers = timers if timers is not None else {}
 
         # key regex
-        self.cpu_regex = re.compile(r'_p(\d{1,6})')
+        self.cpu_regex = re.compile(r'(\d{1,6})(?:.json)')
 
-    def _get_filenames(self, start_filename):
+    def _get_filenames(self, path):
+        '''Assumes all json files are timers. If not, you should explicitly
+        specify filenames when loading.
+        '''
         filenames = []
-        for name in glob.glob(f'{start_filename}_p*.json'):
+        for name in glob.glob(os.path.join(path, f'*.json')):
             filenames.append(name)
 
-        return sorted(filenames)
+        return sorted(filenames, key=lambda x: self._get_cpu(os.path.split(x)[-1]))
 
     def _get_cpu(self, filename):
         return int(self.cpu_regex.search(filename).group(1))
 
-    def load(self, start_filename):
-        '''
+    def load(self, path='.', filenames=None):
 
-        Parameters
-        ----------
-        start_filename : str
-            Files `<start_filename>_p*` will be search for.
-        '''
-        filenames = self._get_filenames(start_filename)
+        if filenames is None:
+            filenames = self._get_filenames(path)
+
         for filename in filenames:
             cpu_num = self._get_cpu(filename)
             self.timers[cpu_num] = load_timer(filename)
