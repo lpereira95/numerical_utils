@@ -22,27 +22,28 @@ def load_timer(filename):
 
 class Timer:
     def __init__(self, name='', description=''):
+        # TODO: allow restart (create list with start and stop)
         self.name = name
         self.description = description
+        self.total_times = []
         # empty initializations
         self._start_time = None
-        self._end_time = None
 
     def start(self):
         self._start_time = time.perf_counter()
 
     def stop(self):
-        self._end_time = time.perf_counter()
+        self.total_times.append(time.perf_counter() - self._start_time)
 
     @property
     def total_time(self):
-        return self._end_time - self._start_time
+        return sum(self.total_times)
 
     def get_info(self):
         info = {'name': self.name,
                 'description': self.description,
-                '_start_time': self._start_time,
-                '_end_time': self._end_time}
+                'total_times': self.total_times,
+                }
 
         return info
 
