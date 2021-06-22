@@ -99,10 +99,31 @@ class TimerForIterations(Timer):
         return info
 
 
+def plot_total_times(x, timers, y_label='Total time /s', ax=None,
+                     log=True, x_label=None, ls='--', marker='x',
+                     **kwargs):
+
+    if ax is None:
+        _, ax = plt.subplots()
+
+    y = [timer.total_time for timer in timers]
+    ax.plot(x, y, linestyle=ls, marker=marker, **kwargs)
+
+    ax.set_ylabel(y_label)
+    if x_label is not None:
+        ax.set_xlabel(x_label)
+
+    if log:
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+
+    return ax
+
+
 # TODO: create statistics
 # TODO: create time bar plotter (including comparisons) - check f3dasm
 
-# TODO: rething this plotters
+# TODO: rething this plotters (very poorly coded); probably function instead?
 
 class TimePlotter:
     # TODO: rethink x
