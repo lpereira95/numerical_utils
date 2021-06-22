@@ -99,23 +99,25 @@ class TimerForIterations(Timer):
         return info
 
 
-def plot_total_times(x, timers, y_label='Total time /s', ax=None,
-                     log=True, x_label=None, ls='--', marker='x',
-                     **kwargs):
+def plot_var(x, timers, var_name='total_time', y_label='Total time /s',
+             linestyle='--', marker='x', **kwargs):
 
+    y = [getattr(timer, var_name) for timer in timers]
+
+    return plot(x, y, y_label=y_label, linestyle=linestyle, marker=marker, **kwargs)
+
+
+def plot(x, y, ax=None, scale='log', x_label=None, y_label=None, **kwargs):
     if ax is None:
         _, ax = plt.subplots()
 
-    y = [timer.total_time for timer in timers]
-    ax.plot(x, y, linestyle=ls, marker=marker, **kwargs)
+    ax.plot(x, y, **kwargs)
 
+    ax.set_xlabel(x_label)
     ax.set_ylabel(y_label)
-    if x_label is not None:
-        ax.set_xlabel(x_label)
 
-    if log:
-        ax.set_xscale('log')
-        ax.set_yscale('log')
+    ax.set_xscale(scale)
+    ax.set_yscale(scale)
 
     return ax
 
@@ -123,103 +125,9 @@ def plot_total_times(x, timers, y_label='Total time /s', ax=None,
 # TODO: create statistics
 # TODO: create time bar plotter (including comparisons) - check f3dasm
 
-# TODO: rething this plotters (very poorly coded); probably function instead?
 
-class TimePlotter:
-    # TODO: rethink x
-
-    def __init__(self, timers, x=None, x_label=None):
-        '''
-        Parameters
-        ----------
-        x : list
-            Corresponding `x` value for each timer (e.g. number of nodes).
-        '''
-        self.timers = timers
-        self.x = None
-        self.x_label = None
-        self.update_x(x, x_label)
-
-    def update_x(self, x, x_label=None):
-        # update x
-        if x is not None:
-            self.x = x
-        elif x is None and self.x is None:
-            self.x = [0 for _ in self.timers]
-
-        # update label
-        if x_label is not None:
-            self.x_label = x_label
-
-    def plot_total_times(self, x=None, ax=None, add_legend=False,
-                         y_label='Total time /s', x_label=None):
-        return self.plot_var(var_name='total_time', y_label=y_label, x=x, ax=ax,
-                             add_legend=add_legend, x_label=x_label)
-
-    def plot_var(self, y=None, var_name=None, y_label=None, x=None, ax=None,
-                 add_legend=False, x_label=None, scatter=False):
-        '''
-        Notes
-        -----
-        * y or var_name must be given (not both).
-        '''
-
-        self.update_x(x, x_label)
-        ax = self._get_ax(ax)
-
-        # get y
-        if y is None:
-            y = [getattr(timer, var_name) for timer in self.timers]
-
-        # plot
-        if scatter:
-            if y is None:
-                labels = [timer.name for timer in self.timers]
-            else:
-                labels = [None for _ in range(len(y))]
-
-            for xx, yy, label in zip(self.x, y, labels):
-                ax.scatter(xx, yy, label=label)
-        else:
-            ax.plot(self.x, y, linestyle='--', marker='x')
-
-        ax.set_xlabel(self.x_label)
-        ax.set_ylabel(y_label)
-
-        if add_legend:
-            ax.legend()
-
-        return ax
-
-    def _get_ax(self, ax):
-        if ax is None:
-            _, ax = plt.subplots()
-
-        return ax
-
-
-class TimePlotterForIterations(TimePlotter):
-    # TODO: review
-
-    def __init__(self, timers, x=None):
-        super().__init__(timers, x)
-
-    def plot_iter(self, ax=None, add_legend=False):
-        ax = self._get_ax(ax)
-
-        for timer in self.timers:
-            iter_times = timer.get_iteration_times()
-            iters = [i for i in range(len(iter_times))]
-
-            ax.plot(iters, iter_times, label=timer.name)
-
-        ax.set_xlabel('Iteration number')
-        ax.set_ylabel("Time /s")
-
-        if add_legend:
-            ax.legend()
-
-        return ax
+# TODO: create plot for iterations
+# TODO: create plot for benchmarks (or update existing one)?
 
 
 # TODO: it should work fine within timeplotter; how to incorporate iterations?
@@ -244,7 +152,7 @@ class ParallelTimerArray:
         '''Assumes all json files are timers. If not, you should explicitly
         specify filenames when loading.
         '''
-        filenames = [name for name in glob.glob(os.path.join(path, f'*.json'))]
+        filenames = [name for name in glob.glob(os.path.join(path, '*.json'))]
 
         return sorted(filenames, key=lambda x: self._get_cpu(os.path.split(x)[-1]))
 
@@ -286,15 +194,12 @@ class ParallelTimerArray:
 
 class BenchmarkTimerArray:
     '''
-    # TODO: complete
+    # TODO: review and complete
     '''
     # TODO: some kind of loader from files? (hard to generalize...) - load by infer
 
     def __init__(self, timers):
         self.timers = timers
-        # create plotter
-        self.plotter = TimePlotter(self, x=[timer.n_cpus for timer in self.timers],
-                                   x_label='n cpus')
 
     def __iter__(self):
         return iter(self.timers)
@@ -308,12 +213,12 @@ class BenchmarkTimerArray:
         total_time_single = self._get_single_cpu_timer().total_time
         return [total_time_single / timer.total_cpu_time for timer in self.timers]
 
-    def plot_total_times(self, ax=None):
-        return self.plotter.plot_total_times(ax=ax)
+    def plot_total_times(self, x, ax=None):
+        return plot_var(x, self.timers, var_name='total_time', ax=ax)
 
-    def plot_efficiencies(self, ax=None):
-        return self.plotter.plot_var(y=self.compute_efficiencies(),
-                                     y_label='Efficiency', ax=ax)
+    def plot_efficiencies(self, x, ax=None):
+        return plot_var(x, y=self.compute_efficiencies(),
+                        y_label='Efficiency', ax=ax)
 
     def plot(self, ax=None):
         ax = self.plot_total_times(ax)
